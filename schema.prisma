@@ -1,0 +1,222 @@
+// Nala Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  bio           String?
+  role          UserRole  @default(CREATOR)
+  stripeCustomerId String? @unique
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  courses       Course[]
+  enrollments   Enrollment[]
+  payments      Payment[]
+  reviews       Review[]
+  templates     Template[]
+  
+  @@index([email])
+}
+
+enum UserRole {
+  CREATOR
+  STUDENT
+  ADMIN
+}
+
+model Course {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  title         String
+  subtitle      String?
+  description   String?
+  thumbnail     String?
+  category      String?
+  price         Float     @default(0)
+  currency      String    @default("EUR")
+  status        CourseStatus @default(DRAFT)
+  
+  creatorId     String
+  creator       User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  publishedAt   DateTime?
+  
+  // Relations
+  lessons       Lesson[]
+  enrollments   Enrollment[]
+  reviews       Review[]
+  
+  @@index([creatorId])
+  @@index([slug])
+  @@index([status])
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Lesson {
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  content       String?   // Rich text content
+  videoUrl      String?
+  duration      Int?      // in seconds
+  order         Int
+  isFree        Boolean   @default(false)
+  
+  courseId      String
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  progress      LessonProgress[]
+  
+  @@index([courseId])
+}
+
+model Enrollment {
+  id            String    @id @default(cuid())
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId      String
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  progress      Int       @default(0) // percentage
+  completedAt   DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  lessonProgress LessonProgress[]
+  
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model LessonProgress {
+  id            String    @id @default(cuid())
+  
+  enrollmentId  String
+  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  
+  lessonId      String
+  lesson        Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  completed     Boolean   @default(false)
+  watchTime     Int       @default(0) // in seconds
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([enrollmentId, lessonId])
+  @@index([enrollmentId])
+  @@index([lessonId])
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  amount        Float
+  currency      String    @default("EUR")
+  status        PaymentStatus
+  stripePaymentId String? @unique
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  metadata      Json?     // Store course info, etc.
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([status])
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Review {
+  id            String    @id @default(cuid())
+  rating        Int       // 1-5
+  comment       String?
+  
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId      String
+  course        Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model Template {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  thumbnail     String?
+  price         Float     @default(0)
+  category      String?
+  downloads     Int       @default(0)
+  status        TemplateStatus @default(PENDING)
+  
+  creatorId     String
+  creator       User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  fileUrl       String?
+  previewUrl    String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([creatorId])
+  @@index([status])
+}
+
+enum TemplateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model SiteSettings {
+  id            String    @id @default(cuid())
+  key           String    @unique
+  value         String
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([key])
+}
